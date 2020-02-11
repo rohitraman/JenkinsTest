@@ -8,12 +8,6 @@ import p1.Add;
 public class AppTest {
 
     @Test
-    public void method() {
-    	Add add=new Add();
-    	int res=add.add(13, 12);
-        assertEquals(res,25);
-    }
-    @Test
     public void method1() {
     	Add add=new Add();
     	int res=add.add(14, 12);
