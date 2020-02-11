@@ -6,6 +6,13 @@ import org.junit.*;
 
 import p1.Add;
 public class AppTest {
+	
+    @Test
+    public void method5() {
+    	Add add=new Add();
+    	int res=add.add(17, 12);
+        assertEquals(res,29);
+    }
     @Test
     public void method() {
     	Add add=new Add();
