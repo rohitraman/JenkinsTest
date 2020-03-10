@@ -26,6 +26,7 @@ steps{
           sh "${scannerHome}/bin/sonar-scanner"
         }
 }
+}
 	stage('Maven Package'){
 		steps{
 				echo 'Project packaging stage'
