@@ -18,12 +18,10 @@ pipeline {
    	}
 stage('SonarQube analysis') {
 steps{
-   withSonarQubeEnv('My SonarQube Server') {
-                    // Optionally use a Maven environment you've configured already
-                    withMaven(maven:'Maven 3.5') {
-                        sh 'mvn clean package sonar:sonar'
-                    }
-                }
+      def scannerHome = tool 'SonarQube Scanner 2.8';
+    withSonarQubeEnv('SonarQube Scanner') {
+      sh "${scannerHome}/bin/sonar-scanner"
+    }
 }
 }
 	stage('Maven Package'){
