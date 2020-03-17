@@ -1,37 +1,101 @@
 pipeline {
-  agent any
-  stages {	
-	stage('Maven Compile'){
+      agent any  
+      tools {         
+          maven 'maven3'     
+          } 
+    stages{
+        stage('Preparation') {
+        steps{
+		
+            echo "microservice"
+            //echo "${GIT_AUTHOR_NAME}"
+            //echo "${GIT_BRANCH}"
+            
+            //sh 'git show -s --pretty=%an'
+            
+            
+            
+        }
+        }
+    
+        stage('MS Packaging'){
+            steps{
+		sh "mvn clean package"
+			
+
+            }     
+        }
+		stage("jacoco")
+	{
+	steps{
+		step([$class: 'JacocoPublisher', 
+	        execPattern: 'target/*.exec',
+      		classPattern: 'target/classes',
+	   	sourcePattern: 'src/main/java',
+		exclusionPattern: 'src/test*'
+		])
+	      }
+	}
+	stage("Sonar Analysis")
+	{
 		steps{
-				echo 'Project compile stage'
-				bat label: 'Compilation running', script: '''mvn compile'''
-	       
+			sh "mvn sonar:sonar"
 		}
 	}
+
 	
-	stage('Unit Test') {
-	   steps {
-			echo 'Project Testing stage'
-			bat label: 'Test running', script: '''mvn test'''
-	       
-       }
-   	}
-stage('SonarQube analysis') {
-steps{
-    withSonarQubeEnv(installationName: 'LocalScanner') { // You can override the credential to be used
-      sh 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.2.0.1873:sonar'
+       
     }
-      
-    
-}
-}
-	stage('Maven Package'){
-		steps{
-				echo 'Project packaging stage'
-				bat label: 'Project packaging', script: '''mvn package'''
-		}
-	}
- 		
-    
-  }
+    post {
+            success {
+                echo 'Tomcat'
+                //deploy adapters: [tomcat9(credentialsId: 'Tomcat', path: '', url: 'http://52.7.117.116:9090')], contextPath: null, onFailure: false, war: '**/*.war'
+                
+
+                s3Upload consoleLogLevel: 'INFO', dontWaitForConcurrentBuildCompletion: false, entries: [[bucket: 'oms-maven-artifacts/snapshot/useroperationsservice', excludedFile: '', flatten: false, gzipFiles: false, keepForever: false, managedArtifacts: false, noUploadOnFailure: false, selectedRegion: 'us-east-1', showDirectlyInBrowser: false, sourceFile: 'target/*.war', storageClass: 'STANDARD', uploadFromSlave: false, useServerSideEncryption: false]], pluginFailureResultConstraint: 'FAILURE', profileName: 'S3-Artifact', userMetadata: []
+                s3Upload consoleLogLevel: 'INFO', dontWaitForConcurrentBuildCompletion: false, entries: [[bucket: 'oms-maven-artifacts/reports/useroperationsservice/jacoco', excludedFile: '', flatten: false, gzipFiles: false, keepForever: false, managedArtifacts: false, noUploadOnFailure: false, selectedRegion: 'us-east-1', showDirectlyInBrowser: false, sourceFile: 'target/*.exec', storageClass: 'STANDARD', uploadFromSlave: false, useServerSideEncryption: false]], pluginFailureResultConstraint: 'FAILURE', profileName: 'S3-Artifact', userMetadata: []
+                s3Upload consoleLogLevel: 'INFO', dontWaitForConcurrentBuildCompletion: false, entries: [[bucket: 'oms-maven-artifacts/reports/useroperationsservice/jacoco/jacoco-ut', excludedFile: '', flatten: false, gzipFiles: false, keepForever: false, managedArtifacts: false, noUploadOnFailure: false, selectedRegion: 'us-east-1', showDirectlyInBrowser: false, sourceFile: 'target/jacoco-ut/*', storageClass: 'STANDARD', uploadFromSlave: false, useServerSideEncryption: false]], pluginFailureResultConstraint: 'FAILURE', profileName: 'S3-Artifact', userMetadata: []
+
+
+                sshPublisher(publishers: [sshPublisherDesc(configName: 'docker_host', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: '', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '//opt//docker', remoteDirectorySDF: false, removePrefix: '', sourceFiles: 'Dockerfile')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false)])
+                
+                sshPublisher(publishers: [sshPublisherDesc(configName: 'docker_host', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: '''docker stop useroperationsservice;
+                docker rm -f useroperationsservice;
+                docker image rm -f useroperationsservice;
+                cd /opt/docker;
+                docker build -t useroperationsservice .''', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '//opt//docker', remoteDirectorySDF: false, removePrefix: 'target', sourceFiles: 'target/*.war')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false)])
+                
+                
+                sshPublisher(publishers: [sshPublisherDesc(configName: 'docker_host', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: 'docker run -d --name useroperationsservice -v /omslogs:/usr/local/tomcat/home/elk -p 9092:8080 useroperationsservice', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '', remoteDirectorySDF: false, removePrefix: '', sourceFiles: '')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false)])
+            }
+
+            failure {
+                script
+                {
+                        issue = [fields: [ project: [key: 'PJABG'],
+                        summary: 'Jenkins Build Failed',
+                        description: 'Failure',
+                        issuetype: [name: 'Issue'],
+                        assignee: [name: 'dayrao']
+                        ]]
+                        newIssue = jiraNewIssue issue: issue, site: 'JIRA'
+                        //jiraAssignIssue idOrKey: '5555', userName: 'Navdeep Singh', site: 'JIRA'
+                }         
+            }
+
+            unstable
+            {
+                script
+                {
+                        issue = [fields: [ project: [key: 'PJABG'],
+                        summary: 'Jenkins Build unstable',
+                        description: 'Failure',
+                        issuetype: [name: 'Issue'],
+                        assignee: [name: 'dayrao']
+                        ]]
+                        newIssue = jiraNewIssue issue: issue, site: 'JIRA'
+                }         
+            } 
+	
+    }
 }
